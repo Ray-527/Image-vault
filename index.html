@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="description" content="Image Vault - penyimpanan gambar pribadi di browser">
+<link rel="manifest" href="manifest.json">
+<title>Image Vault</title>
+<style>
+:root{--bg:#080d1a;--panel:#111a2c;--panel2:#18243d;--text:#f8fafc;--muted:#94a3b8;--accent:#8b5cf6;--danger:#dc2626}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#080d1a,#10172a 55%,#1b1230);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+header{position:sticky;top:0;z-index:10;background:#080d1add;backdrop-filter:blur(16px);border-bottom:1px solid #ffffff12}
+nav{max-width:1100px;margin:auto;padding:15px 18px;display:flex;align-items:center;gap:12px}.logo{font-size:20px;font-weight:800}.logo b{color:#a78bfa}.spacer{flex:1}
+main{max-width:1100px;margin:auto;padding:24px 16px 60px}.hero{text-align:center;padding:20px 0}.hero h1{font-size:clamp(30px,8vw,48px);margin:0 0 6px}.hero p{color:var(--muted);margin:0}
+.drop{margin:18px auto;max-width:760px;border:2px dashed #6941a5;border-radius:20px;padding:30px 18px;text-align:center;background:#8b5cf610}.drop.drag{background:#8b5cf62a;border-color:#c4b5fd}.cloud{font-size:40px}
+button,.pick{border:0;border-radius:11px;background:var(--accent);color:white;padding:10px 14px;font-weight:750;cursor:pointer}.secondary{background:var(--panel2)!important;border:1px solid #ffffff12!important}
+input[type=file]{display:none}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:20px 0 14px}.search{flex:1;min-width:180px;padding:11px 14px;border-radius:11px;border:1px solid #ffffff12;background:var(--panel);color:white;outline:none}.count{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}.card{overflow:hidden;background:var(--panel);border:1px solid #ffffff0d;border-radius:15px}.thumb{display:block;width:100%;height:175px;object-fit:cover;background:#0b1222;cursor:pointer}.info{padding:9px 10px}.name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font-size:11px;color:var(--muted);margin-top:3px}.actions{display:flex;gap:7px;margin-top:8px}.actions button{flex:1;padding:7px;font-size:12px}.delete{background:#45151b!important}
+.empty{text-align:center;color:var(--muted);border:1px dashed #ffffff14;border-radius:16px;padding:55px 20px}
+.modal{display:none;position:fixed;inset:0;z-index:50;background:#000d;align-items:center;justify-content:center;padding:18px}.modal.show{display:flex}.viewer{max-width:96vw;max-height:94vh;text-align:center}.viewer img{max-width:96vw;max-height:82vh;object-fit:contain;border-radius:10px}.viewer p{color:white}.close{position:fixed;right:15px;top:15px;border-radius:50%;width:42px;height:42px;padding:0;font-size:24px}
+.toast{position:fixed;z-index:100;bottom:20px;left:50%;transform:translate(-50%,25px);opacity:0;background:#121827;border:1px solid #ffffff18;padding:11px 16px;border-radius:12px;transition:.2s}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:520px){main{padding-left:11px;padding-right:11px}.grid{grid-template-columns:repeat(2,1fr);gap:9px}.thumb{height:145px}.hero{padding-top:10px}}
+</style>
+</head>
+<body>
+<header><nav><div class="logo">🖼️ Image <b>Vault</b></div><div class="spacer"></div><button class="secondary" id="install" hidden>＋ Pasang</button><button class="secondary" id="clear">Hapus Semua</button></nav></header>
+<main>
+<section class="hero"><h1>Image Vault</h1><p>Galeri pribadi yang tersimpan di browser kamu.</p></section>
+<section class="drop" id="drop"><div class="cloud">☁️</div><h3>Tambahkan gambar</h3><p style="color:var(--muted)">Pilih dari perangkat atau drag & drop di sini.</p><label class="pick" for="files">＋ Pilih Gambar</label><input id="files" type="file" accept="image/*" multiple></section>
+<div class="toolbar"><input class="search" id="search" placeholder="🔎 Cari nama gambar..."><span class="count" id="count">0 gambar</span></div>
+<div id="gallery" class="grid"></div><div id="empty" class="empty">Belum ada gambar.<br>Isi vault-mu dengan beberapa piksel.</div>
+</main>
+<div class="modal" id="modal"><button class="close" id="close">×</button><div class="viewer"><img id="big" alt=""><p id="caption"></p></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const DB="ImageVault",STORE="images";let db,items=[],urls=[];
+const $=id=>document.getElementById(id);
+function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE,{keyPath:"id",autoIncrement:true});r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})}
+function store(mode){return db.transaction(STORE,mode).objectStore(STORE)}
+function getAll(){return new Promise((res,rej)=>{let r=store("readonly").getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function add(x){return new Promise((res,rej)=>{let r=store("readwrite").add(x);r.onsuccess=res;r.onerror=()=>rej(r.error)})}
+function del(id){return new Promise((res,rej)=>{let r=store("readwrite").delete(id);r.onsuccess=res;r.onerror=()=>rej(r.error)})}
+function clearDB(){return new Promise((res,rej)=>{let r=store("readwrite").clear();r.onsuccess=res;r.onerror=()=>rej(r.error)})}
+function size(n){return n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB"}
+function esc(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function toast(s){$("toast").textContent=s;$("toast").classList.add("show");clearTimeout(window.tt);window.tt=setTimeout(()=>$("toast").classList.remove("show"),2200)}
+async function upload(fs){let list=[...fs].filter(f=>f.type.startsWith("image/"));for(let f of list)await add({name:f.name,size:f.size,type:f.type,date:Date.now(),blob:f});if(list.length)toast(list.length+" gambar disimpan");load()}
+async function load(){items=(await getAll()).sort((a,b)=>b.date-a.date);render()}
+function render(){urls.forEach(URL.revokeObjectURL);urls=[];let q=$("search").value.toLowerCase(),list=items.filter(x=>x.name.toLowerCase().includes(q));$("gallery").innerHTML="";$("empty").style.display=list.length?"none":"block";$("count").textContent=items.length+" gambar";
+for(let x of list){let u=URL.createObjectURL(x.blob);urls.push(u);let c=document.createElement("article");c.className="card";c.innerHTML=`<img class="thumb" src="${u}" alt="${esc(x.name)}"><div class="info"><div class="name" title="${esc(x.name)}">${esc(x.name)}</div><div class="meta">${size(x.size)} · ${new Date(x.date).toLocaleDateString("id-ID")}</div><div class="actions"><button class="secondary view">Lihat</button><button class="delete">Hapus</button></div></div>`;c.querySelector(".thumb").onclick=()=>view(x,u);c.querySelector(".view").onclick=()=>view(x,u);c.querySelector(".delete").onclick=async()=>{if(confirm("Hapus gambar ini?")){await del(x.id);toast("Gambar dihapus");load()}};$("gallery").append(c)}}
+function view(x,u){$("big").src=u;$("caption").textContent=x.name;$("modal").classList.add("show")}
+$("files").onchange=e=>{upload(e.target.files);e.target.value=""};$("search").oninput=render;$("close").onclick=()=>$("modal").classList.remove("show");$("modal").onclick=e=>{if(e.target===$("modal"))$("modal").classList.remove("show")};
+$("clear").onclick=async()=>{if(items.length&&confirm("Hapus semua gambar?")){await clearDB();toast("Vault dikosongkan");load()}};
+$("drop").ondragover=e=>{e.preventDefault();$("drop").classList.add("drag")};$("drop").ondragleave=()=>$("drop").classList.remove("drag");$("drop").ondrop=e=>{e.preventDefault();$("drop").classList.remove("drag");upload(e.dataTransfer.files)};
+let deferred;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e;$("install").hidden=false});$("install").onclick=async()=>{if(deferred){deferred.prompt();deferred=null;$("install").hidden=true}};
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); openDB().then(load);
+</script>
+</body>
+</html>
